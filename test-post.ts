@@ -40,12 +40,32 @@ async function testLinkedInAPI() {
   console.log(`🔑 Using access token: ${accessToken.substring(0, 20)}...`);
 
   try {
-    // First get user profile to get the correct member ID  
+    // First inspect the token to see what scopes it actually has
+    console.log('\n🔍 Inspecting access token...');
+    const tokenInspectResponse = await fetch('https://api.linkedin.com/v2/introspectToken', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `token=${accessToken}`,
+    });
+    
+    if (tokenInspectResponse.ok) {
+      const tokenInfo = await tokenInspectResponse.json();
+      console.log('✅ Token info:', JSON.stringify(tokenInfo, null, 2));
+    } else {
+      console.log(`⚠️ Token inspection failed: ${tokenInspectResponse.status}`);
+    }
+
+    // Try the profile endpoint that matches the current token scopes
     console.log('\n📋 Getting user profile...');
-    const profileResponse = await fetch('https://api.linkedin.com/v2/people/~:(id)', {
+    const profileResponse = await fetch('https://api.linkedin.com/v2/people/~?projection=(id,firstName,lastName)', {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        'LinkedIn-Version': '202501',
+        'X-Restli-Protocol-Version': '2.0.0',
       },
     });
 
@@ -54,35 +74,24 @@ async function testLinkedInAPI() {
       const profile = await profileResponse.json();
       userId = profile.id;
       console.log(`✅ User ID: ${userId}`);
+      console.log(`✅ Profile data:`, JSON.stringify(profile, null, 2));
     } else {
-      console.log(`⚠️ Profile fetch failed: ${profileResponse.status}, using fallback approach`);
-      // Try a minimal post without author - LinkedIn should infer from token
+      const errorText = await profileResponse.text();
+      console.log(`⚠️ Profile fetch failed: ${profileResponse.status}`);
+      console.log(`🔍 Error response: ${errorText}`);
       userId = null;
     }
     
     console.log('\n📝 Testing LinkedIn post creation...');
     
-    const postContent = userId ? {
-      author: `urn:li:member:${userId}`,
+    // Use LinkedIn UGC Posts API with proper structure
+    const postContent = {
+      author: userId ? `urn:li:person:${userId}` : undefined,
       lifecycleState: "PUBLISHED",
       specificContent: {
         "com.linkedin.ugc.ShareContent": {
           shareCommentary: {
-            text: "Excited about the growing potential of sustainable transportation solutions. The shift toward electric mobility is creating new opportunities across industries. #sustainability #innovation"
-          },
-          shareMediaCategory: "NONE"
-        }
-      },
-      visibility: {
-        "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-      }
-    } : {
-      // Minimal post structure if we can't get user ID
-      lifecycleState: "PUBLISHED",
-      specificContent: {
-        "com.linkedin.ugc.ShareContent": {
-          shareCommentary: {
-            text: "Excited about the growing potential of sustainable transportation solutions. The shift toward electric mobility is creating new opportunities across industries. #sustainability #innovation"
+            text: "Testing LinkedIn integration - excited about sustainable transportation! #innovation #sustainability"
           },
           shareMediaCategory: "NONE"
         }
@@ -92,11 +101,19 @@ async function testLinkedInAPI() {
       }
     };
 
+    // Remove undefined fields
+    if (!postContent.author) {
+      delete postContent.author;
+    }
+
+    console.log('📤 Posting content:', JSON.stringify(postContent, null, 2));
+
     const postResponse = await fetch('https://api.linkedin.com/v2/ugcPosts', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        'LinkedIn-Version': '202501',
         'X-Restli-Protocol-Version': '2.0.0',
       },
       body: JSON.stringify(postContent),
