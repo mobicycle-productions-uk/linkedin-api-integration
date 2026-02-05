@@ -1,0 +1,35 @@
+# LinkedIn API Credentials - NEVER COMMIT
+credentials.json
+*.env
+.env*
+
+# Node modules
+node_modules/
+bun.lockb
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+.tmp/
+tmp/
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+*.tgz
+
+# Runtime files
+*.pid
+*.lock
